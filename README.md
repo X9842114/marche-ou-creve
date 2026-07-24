@@ -13,8 +13,8 @@ Développé par **CVE**.
 ## Prérequis
 
 - Node.js 20+
-- Un hébergement **Node.js persistant** (VPS, Pterodactyl, machine dédiée…).  
-  Un hébergement serverless type Vercel n’est **pas** adapté (fichier SQLite local).
+- **Sans VPS** (cas cveshop.com / OVH mutualisé) : voir [DEPLOY.md](DEPLOY.md) (Vercel + Turso + sous-domaine `h47.cveshop.com`)
+- **Avec VPS** : Node persistant + dossier `data/`
 
 ## Installation
 

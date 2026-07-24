@@ -8,7 +8,10 @@ const globalForDb = globalThis as unknown as {
 };
 
 function resolveDbUrl(): string {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.DATABASE_URL?.trim()) {
+    return process.env.DATABASE_URL.trim();
+  }
+  // Local / VPS : fichier SQLite
   const dataDir = path.join(process.cwd(), "data");
   fs.mkdirSync(dataDir, { recursive: true });
   const file = path.join(dataDir, "marche-ou-creve.db");
@@ -17,7 +20,11 @@ function resolveDbUrl(): string {
 
 export function getDb(): Client {
   if (!globalForDb.__mocDb) {
-    globalForDb.__mocDb = createClient({ url: resolveDbUrl() });
+    const url = resolveDbUrl();
+    const authToken = process.env.DATABASE_AUTH_TOKEN?.trim();
+    globalForDb.__mocDb = createClient(
+      authToken ? { url, authToken } : { url }
+    );
   }
   return globalForDb.__mocDb;
 }
@@ -54,7 +61,6 @@ async function migrate(db: Client) {
     ON participants(district)
   `);
 
-  // Migration douce si ancienne table sans revision
   try {
     await db.execute(
       `ALTER TABLE settings ADD COLUMN revision INTEGER NOT NULL DEFAULT 1`
