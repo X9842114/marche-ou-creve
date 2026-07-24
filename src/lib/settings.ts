@@ -1,23 +1,37 @@
-import { bumpRevision, ensureDb } from "@/lib/db";
+import { bumpRevision, getSupabase } from "@/lib/db";
 import type { EventMode, EventSettings } from "@/types/settings";
 
 export type SettingsWithRevision = EventSettings & { revision: number };
 
-function rowToSettings(row: Record<string, unknown>): SettingsWithRevision {
+type SettingsRow = {
+  id: number;
+  mode: string;
+  updated_at: string;
+  mixer_at: string | null;
+  show_drawn: boolean;
+  revision: number;
+};
+
+function rowToSettings(row: SettingsRow): SettingsWithRevision {
   return {
     mode: row.mode === "closed" ? "closed" : "inscription",
-    updatedAt: String(row.updated_at ?? new Date().toISOString()),
-    mixerAt: row.mixer_at ? String(row.mixer_at) : null,
-    showDrawn: Boolean(Number(row.show_drawn ?? 0)),
+    updatedAt: row.updated_at || new Date().toISOString(),
+    mixerAt: row.mixer_at ?? null,
+    showDrawn: Boolean(row.show_drawn),
     revision: Number(row.revision ?? 1),
   };
 }
 
 export async function getSettings(): Promise<SettingsWithRevision> {
-  const db = await ensureDb();
-  const result = await db.execute(`SELECT * FROM settings WHERE id = 1`);
-  const row = result.rows[0] as Record<string, unknown> | undefined;
-  if (!row) {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("moc_settings")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
     return {
       mode: "inscription",
       updatedAt: new Date().toISOString(),
@@ -26,7 +40,7 @@ export async function getSettings(): Promise<SettingsWithRevision> {
       revision: 1,
     };
   }
-  return rowToSettings(row);
+  return rowToSettings(data as SettingsRow);
 }
 
 export async function updateSettings(patch: {
@@ -34,28 +48,25 @@ export async function updateSettings(patch: {
   mixerAt?: string | null;
   showDrawn?: boolean;
 }): Promise<SettingsWithRevision> {
-  const db = await ensureDb();
+  const sb = getSupabase();
   const current = await getSettings();
   const next = {
     mode: patch.mode ?? current.mode,
-    mixerAt: patch.mixerAt !== undefined ? patch.mixerAt : current.mixerAt,
-    showDrawn:
+    mixer_at: patch.mixerAt !== undefined ? patch.mixerAt : current.mixerAt,
+    show_drawn:
       patch.showDrawn !== undefined ? patch.showDrawn : current.showDrawn,
-    updatedAt: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 
-  await db.execute({
-    sql: `UPDATE settings
-           SET mode = ?, updated_at = ?, mixer_at = ?, show_drawn = ?
-           WHERE id = 1`,
-    args: [
-      next.mode,
-      next.updatedAt,
-      next.mixerAt,
-      next.showDrawn ? 1 : 0,
-    ],
-  });
+  const { error } = await sb.from("moc_settings").update(next).eq("id", 1);
+  if (error) throw error;
 
-  const revision = await bumpRevision(db);
-  return { ...next, revision };
+  const revision = await bumpRevision();
+  return {
+    mode: next.mode,
+    mixerAt: next.mixer_at,
+    showDrawn: next.show_drawn,
+    updatedAt: next.updated_at,
+    revision,
+  };
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { DISTRICTS, PICKS_PER_DISTRICT } from "@/lib/districts";
-import { bumpRevision, ensureDb } from "@/lib/db";
+import { bumpRevision, getSupabase } from "@/lib/db";
 import { getSettings, updateSettings } from "@/lib/settings";
 import { registrationSchema } from "@/lib/validation";
 import {
@@ -12,7 +12,20 @@ import {
   type RaceStatus,
 } from "@/types/participant";
 
-function rowToParticipant(row: Record<string, unknown>): Participant {
+type ParticipantRow = {
+  id: string;
+  nom: string;
+  prenom: string;
+  matricule: string;
+  id_unique: string;
+  district: string;
+  registered_at: string;
+  selected: boolean;
+  warnings: number;
+  status: string;
+};
+
+function rowToParticipant(row: ParticipantRow): Participant {
   const warnings = Math.max(
     0,
     Math.min(MAX_WARNINGS, Number(row.warnings ?? 0))
@@ -30,30 +43,32 @@ function rowToParticipant(row: Record<string, unknown>): Participant {
     idUnique: String(row.id_unique),
     district: row.district as DistrictId,
     registeredAt: String(row.registered_at),
-    selected: Boolean(Number(row.selected ?? 0)),
+    selected: Boolean(row.selected),
     warnings,
     status,
   };
 }
 
 export async function listParticipants(): Promise<Participant[]> {
-  const db = await ensureDb();
-  const result = await db.execute(
-    `SELECT * FROM participants ORDER BY registered_at ASC`
-  );
-  return result.rows.map((row) =>
-    rowToParticipant(row as Record<string, unknown>)
-  );
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("moc_participants")
+    .select("*")
+    .order("registered_at", { ascending: true });
+  if (error) throw error;
+  return (data as ParticipantRow[]).map(rowToParticipant);
 }
 
 export async function listSelectedParticipants(): Promise<Participant[]> {
-  const db = await ensureDb();
-  const result = await db.execute(
-    `SELECT * FROM participants WHERE selected = 1 ORDER BY district, prenom`
-  );
-  return result.rows.map((row) =>
-    rowToParticipant(row as Record<string, unknown>)
-  );
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("moc_participants")
+    .select("*")
+    .eq("selected", true)
+    .order("district", { ascending: true })
+    .order("prenom", { ascending: true });
+  if (error) throw error;
+  return (data as ParticipantRow[]).map(rowToParticipant);
 }
 
 export async function addParticipant(
@@ -74,21 +89,23 @@ export async function addParticipant(
   }
 
   const data = parsed.data;
-  const db = await ensureDb();
+  const sb = getSupabase();
 
-  const dupId = await db.execute({
-    sql: `SELECT id FROM participants WHERE id_unique = ?`,
-    args: [data.idUnique.trim()],
-  });
-  if (dupId.rows.length > 0) {
+  const { data: dupId } = await sb
+    .from("moc_participants")
+    .select("id")
+    .eq("id_unique", data.idUnique.trim())
+    .maybeSingle();
+  if (dupId) {
     return { error: "Cet ID unique est déjà utilisé.", status: 409 };
   }
 
-  const dupMat = await db.execute({
-    sql: `SELECT id FROM participants WHERE matricule = ?`,
-    args: [data.matricule.trim()],
-  });
-  if (dupMat.rows.length > 0) {
+  const { data: dupMat } = await sb
+    .from("moc_participants")
+    .select("id")
+    .eq("matricule", data.matricule.trim())
+    .maybeSingle();
+  if (dupMat) {
     return { error: "Ce matricule est déjà inscrit.", status: 409 };
   }
 
@@ -105,26 +122,24 @@ export async function addParticipant(
     status: "en_course",
   };
 
-  try {
-    await db.execute({
-      sql: `INSERT INTO participants
-            (id, nom, prenom, matricule, id_unique, district, registered_at, selected, warnings, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 'en_course')`,
-      args: [
-        participant.id,
-        participant.nom,
-        participant.prenom,
-        participant.matricule,
-        participant.idUnique,
-        participant.district,
-        participant.registeredAt,
-      ],
-    });
-    await bumpRevision(db);
-  } catch {
-    return { error: "Conflit d’inscription (doublon).", status: 409 };
+  const { error } = await sb.from("moc_participants").insert({
+    id: participant.id,
+    nom: participant.nom,
+    prenom: participant.prenom,
+    matricule: participant.matricule,
+    id_unique: participant.idUnique,
+    district: participant.district,
+    registered_at: participant.registeredAt,
+    selected: false,
+    warnings: 0,
+    status: "en_course",
+  });
+
+  if (error) {
+    return { error: "Conflit d'inscription (doublon).", status: 409 };
   }
 
+  await bumpRevision();
   return { participant };
 }
 
@@ -132,15 +147,17 @@ export async function updateParticipantRace(
   id: string,
   patch: { warnings?: number; status?: RaceStatus }
 ): Promise<{ participant: Participant } | { error: string; status: number }> {
-  const db = await ensureDb();
-  const existingRes = await db.execute({
-    sql: `SELECT * FROM participants WHERE id = ?`,
-    args: [id],
-  });
-  const row = existingRes.rows[0] as Record<string, unknown> | undefined;
+  const sb = getSupabase();
+  const { data: row, error } = await sb
+    .from("moc_participants")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw error;
   if (!row) return { error: "Participant introuvable.", status: 404 };
 
-  const existing = rowToParticipant(row);
+  const existing = rowToParticipant(row as ParticipantRow);
   if (!existing.selected) {
     return {
       error: "Seuls les tirés au sort peuvent recevoir des avertissements.",
@@ -162,27 +179,30 @@ export async function updateParticipantRace(
   }
   if (warnings >= MAX_WARNINGS) status = "elimine";
 
-  await db.execute({
-    sql: `UPDATE participants SET warnings = ?, status = ? WHERE id = ?`,
-    args: [warnings, status, id],
-  });
-  await bumpRevision(db);
+  const { error: upErr } = await sb
+    .from("moc_participants")
+    .update({ warnings, status })
+    .eq("id", id);
+  if (upErr) throw upErr;
 
+  await bumpRevision();
   return { participant: { ...existing, warnings, status } };
 }
 
 export async function deleteParticipant(
   id: string
 ): Promise<{ ok: true } | { error: string; status: number }> {
-  const db = await ensureDb();
-  const result = await db.execute({
-    sql: `DELETE FROM participants WHERE id = ?`,
-    args: [id],
-  });
-  if ((result.rowsAffected ?? 0) === 0) {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("moc_participants")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) {
     return { error: "Participant introuvable.", status: 404 };
   }
-  await bumpRevision(db);
+  await bumpRevision();
   return { ok: true };
 }
 
@@ -201,24 +221,27 @@ export async function runDistrictMixerFor(
   const district = DISTRICTS.find((d) => d.id === districtId);
   if (!district) throw new Error("District invalide");
 
-  const db = await ensureDb();
-  const poolRes = await db.execute({
-    sql: `SELECT * FROM participants WHERE district = ?`,
-    args: [districtId],
-  });
-  const pool = poolRes.rows.map((row) =>
-    rowToParticipant(row as Record<string, unknown>)
-  );
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("moc_participants")
+    .select("*")
+    .eq("district", districtId);
+  if (error) throw error;
+
+  const pool = (data as ParticipantRow[]).map(rowToParticipant);
   const winners = shuffle(pool).slice(0, PICKS_PER_DISTRICT);
   const winnerIds = new Set(winners.map((p) => p.id));
 
   for (const p of pool) {
-    await db.execute({
-      sql: `UPDATE participants
-            SET selected = ?, warnings = 0, status = 'en_course'
-            WHERE id = ?`,
-      args: [winnerIds.has(p.id) ? 1 : 0, p.id],
-    });
+    const { error: upErr } = await sb
+      .from("moc_participants")
+      .update({
+        selected: winnerIds.has(p.id),
+        warnings: 0,
+        status: "en_course",
+      })
+      .eq("id", p.id);
+    if (upErr) throw upErr;
   }
 
   await updateSettings({ mixerAt: new Date().toISOString() });
@@ -251,10 +274,12 @@ export async function runDistrictMixer(): Promise<{
 }
 
 export async function clearMixerSelection(): Promise<void> {
-  const db = await ensureDb();
-  await db.execute(
-    `UPDATE participants SET selected = 0, warnings = 0, status = 'en_course'`
-  );
+  const sb = getSupabase();
+  const { error } = await sb
+    .from("moc_participants")
+    .update({ selected: false, warnings: 0, status: "en_course" })
+    .not("id", "is", null);
+  if (error) throw error;
   await updateSettings({ mixerAt: null });
 }
 

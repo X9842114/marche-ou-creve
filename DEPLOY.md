@@ -1,57 +1,43 @@
-# Déploiement sans VPS (cveshop.com)
+# Déploiement cveshop.com (sans VPS)
 
-Le shop `cveshop.com` est en Apache OVH : on ne peut pas y coller Next.js directement.
-Solution : **Vercel** (app) + **Turso** (base SQLite cloud) + sous-domaine DNS.
+Base : **Supabase**  
+App : **Vercel** (gratuit)  
+URL : **https://h47.cveshop.com** (ne casse pas le shop principal)
 
-URL cible : `https://h47.cveshop.com`
+## 1. Tables Supabase
 
-## 1. Créer la base Turso (gratuit)
+1. Ouvre ton projet Supabase (celui de CVE Shop)
+2. SQL Editor → colle le fichier `supabase/schema.sql` → Run
 
-1. Va sur https://turso.tech et crée un compte
-2. Crée une base `marche-ou-creve`
-3. Copie :
-   - URL `libsql://...turso.io`
-   - Token d'auth
+## 2. Clés API
 
-## 2. Déployer sur Vercel
+Project Settings → API :
+- `Project URL` → `SUPABASE_URL`
+- `service_role` (secret) → `SUPABASE_SERVICE_ROLE_KEY`
+
+## 3. Vercel
 
 ```bash
 npm i -g vercel
 vercel login
-cd marche-ou-creve
 vercel
-```
-
-Dans le dashboard Vercel → Project → Settings → Environment Variables :
-
-| Nom | Valeur |
-|-----|--------|
-| `ADMIN_PASSWORD` | ton mot de passe admin |
-| `ADMIN_SECRET` | longue chaîne aléatoire |
-| `DATABASE_URL` | URL Turso |
-| `DATABASE_AUTH_TOKEN` | token Turso |
-
-Puis :
-
-```bash
 vercel --prod
 ```
 
-## 3. Brancher h47.cveshop.com (OVH)
+Variables d'environnement Vercel :
 
-1. Vercel → Project → Settings → Domains → ajoute `h47.cveshop.com`
-2. Panel OVH → Domaines → `cveshop.com` → Zone DNS → ajoute :
+| Nom | Valeur |
+|-----|--------|
+| `ADMIN_PASSWORD` | ex. H47ADMIN47 |
+| `ADMIN_SECRET` | chaîne longue aléatoire |
+| `SUPABASE_URL` | https://xxxx.supabase.co |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role |
 
-| Type | Sous-domaine | Cible |
-|------|--------------|--------|
-| CNAME | `h47` | `cname.vercel-dns.com.` |
+## 4. Domaine OVH → h47.cveshop.com
 
-(ou la cible exacte indiquée par Vercel)
+1. Vercel → Domains → ajoute `h47.cveshop.com`
+2. OVH → Zone DNS `cveshop.com` → CNAME :
+   - Sous-domaine : `h47`
+   - Cible : `cname.vercel-dns.com.` (ou celle indiquée par Vercel)
 
-3. Attends 5-30 min (propagation DNS)
-4. Site : https://h47.cveshop.com  
-   Admin : https://h47.cveshop.com/Admin47
-
-## Pourquoi pas directement sur cveshop.com ?
-
-Ça écraserait le shop FiveM actuel. Le sous-domaine `h47` laisse les deux sites vivre ensemble.
+Admin : https://h47.cveshop.com/Admin47

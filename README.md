@@ -1,6 +1,6 @@
 # Marche ou Crève - H-47
 
-Site d’inscription et de tirage pour l’événement GTA V RP **Marche ou Crève (H-47)**.
+Site d'inscription et de tirage pour l'événement GTA V RP **Marche ou Crève (H-47)**.
 
 Développé par **CVE**.
 
@@ -8,48 +8,23 @@ Développé par **CVE**.
 
 - Next.js (App Router)
 - React + TypeScript + Tailwind
-- SQLite (`@libsql/client`) - une base partagée pour tous les visiteurs
+- **Supabase** (Postgres) - données partagées pour tous les visiteurs
 
-## Prérequis
+## Déploiement (cveshop.com, sans VPS)
 
-- Node.js 20+
-- **Sans VPS** (cas cveshop.com / OVH mutualisé) : voir [DEPLOY.md](DEPLOY.md) (Vercel + Turso + sous-domaine `h47.cveshop.com`)
-- **Avec VPS** : Node persistant + dossier `data/`
+Voir **[DEPLOY.md](DEPLOY.md)** : Vercel + Supabase + sous-domaine `h47.cveshop.com`.
 
-## Installation
+## Installation locale
 
 ```bash
-git clone <url-du-repo>
+git clone https://github.com/X9842114/marche-ou-creve.git
 cd marche-ou-creve
 cp .env.example .env
+# renseigner SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY + ADMIN_*
 npm install
-```
-
-Édite `.env` :
-
-```env
-ADMIN_PASSWORD=ton-mot-de-passe-fort
-ADMIN_SECRET=une-longue-chaine-aleatoire
-```
-
-## Lancer
-
-### Développement
-
-```bash
+# Exécuter supabase/schema.sql dans le SQL Editor Supabase
 npm run dev
 ```
-
-Le site écoute sur `0.0.0.0:3000` (accessible sur le réseau local).
-
-### Production
-
-```bash
-npm run build
-npm start
-```
-
-La base SQLite est créée automatiquement dans `data/marche-ou-creve.db`.
 
 ## Pages
 
@@ -62,17 +37,8 @@ La base SQLite est créée automatiquement dans `data/marche-ou-creve.db`.
 ## Administration
 
 1. Ouvre `/Admin47`
-2. Connecte-toi avec `ADMIN_PASSWORD`
-3. Ouvre / ferme les inscriptions, lance le tirage, publie la sélection, gère les avertissements
-
-Tous les visiteurs voient la **même** donnée (sync ~3 s via `/api/sync`).
-
-## Notes pour l’hébergeur
-
-- Garde le dossier `data/` en volume persistant (sinon les inscriptions disparaissent au redémarrage).
-- Ne commit jamais le fichier `.env`.
-- En HTTPS, les cookies admin passent en `Secure` automatiquement en production.
-- Ouvre le port 3000 (ou place un reverse proxy Nginx / Caddy devant).
+2. Mot de passe = `ADMIN_PASSWORD`
+3. Ouvre / ferme les inscriptions, tirage, publication, avertissements
 
 ## Licence
 
