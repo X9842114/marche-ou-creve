@@ -1,0 +1,120 @@
+/* Admin opaque panels - loaded via layout */
+.admin-shell {
+  position: relative;
+  z-index: 1;
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+}
+
+.admin-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  background: #12101a;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.admin-panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  background: #12101a;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.admin-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  background: #12101a;
+}
+
+.admin-stat__label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.admin-stat__value {
+  margin: 0.1rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+
+.admin-district {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.9rem;
+  background: #0c0a12;
+  padding: 0.95rem;
+}
+
+.admin-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.admin-progress__bar {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.35s ease;
+}
+
+.admin-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.45rem;
+  background: rgba(192, 132, 252, 0.14);
+  border: 1px solid rgba(192, 132, 252, 0.28);
+  padding: 0.2rem 0.45rem;
+  font-size: 0.7rem;
+  color: #e9d5ff;
+}
+
+.admin-chip--out {
+  opacity: 0.55;
+  text-decoration: line-through;
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.28);
+  color: #fecaca;
+}
+
+.admin-btn {
+  min-height: 2.15rem !important;
+  padding-inline: 0.85rem !important;
+}
+
+.admin-btn--primary {
+  background: #fff !important;
+  color: #0a0610 !important;
+}
+
+.admin-btn--primary:hover {
+  background: #f3e8ff !important;
+}
+
+.admin-stepper-btn {
+  color: #fff !important;
+}
+
+.admin-stepper-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
